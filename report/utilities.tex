@@ -1,0 +1,72 @@
+\section{辅助外设}
+\subsection{微秒延时}
+STM32的HAL库里提供了基于SysTick的延时函数\cinl{HAL_Delay(u32)}，单位为毫秒。
+但在我们的应用中，往往需要微秒级别的延时，例如ADS124S08的复位过程，
+最小的$\overline{\text{RESET}}$引脚低电平持续时间为
+$t_\textrm{w(RSL)} = 4\times t_\textrm{CLK}\approx\SI{1}{us}$.
+因此我们需要借助定时器来实现微秒延时。
+
+\subsubsection{基本定时器}
+STM32H743拥有2个基本定时器，TIM6和TIM7，包含以下特性：
+
+\begin{itemize}
+    \item 16位自动重载递增计数器
+    \item 16位可编程预分频器，用于对计数器时钟频率进行分频（可在运行时修改），
+    分频系数介于1和65535之间
+    \item 用于触发DAC的同步电路
+    \item 发生如下更新事件时会生成中断/DMA请求：计数器上溢
+\end{itemize}
+
+由于我们只使用其计时功能，因此只需关注其时基单元：
+
+\begin{itemize}
+    \item 计数器寄存器 (TIMx\_CNT)
+    \item 预分频器寄存器 (TIMx\_PSC)
+    \item 自动重载寄存器 (TIMx\_ARR)
+\end{itemize}
+
+在自动重载寄存器(TIMx\_ARR)中添加一个计数值并使能TIMx后，计数寄存器(TIMx\_CNT)就会从0开始递增，
+当TIMx\_CNT的数值与TIMx\_ARR值相同时就会生成事件并把TIMx\_CNT寄存器清0，完成一次循环过程。
+
+注意，即使在计数器运行时，上述三个寄存器也可执行读写操作。因此我们可直接通过读取其寄存器判断是否
+达到延时时间，而不需要使用事件中断。
+
+\subsubsection{参数配置}
+在STM32H7的时钟树上，我们可看到基本定时器TIM6/TIM7所在的APB1总线时钟是\SI{240}{MHz}：
+
+\begin{figure}[H]
+\center
+    \includegraphics[width=0.8\textwidth]{img/tim6-clock.png}
+    \captionof{figure}{外设总线时钟配置}
+\end{figure}
+
+为了达到微秒级别的延时，计数器预分频比不能超过$\SI{240}{MHz}\times\SI{1}{us}=240$.
+由于我们的应用不需要较高的精度，因此为方便计算，直接设置预分频为240，
+即让计数器工作在\SI{1}{MHz}的频率，每计数一次代表\SI{1}{ms}.
+如果需要更精确的控制粒度，减小分频比即可。
+
+计数器从0开始向上计到自动重载值（即TIMx\_ARR寄存器），然后重新从0开始计数并生成计数器上溢事件。
+为了尽量提高可延时的范围，将自动重载值设到最大65535即可。
+
+以下是基本定时器TIM6外设的最终配置：
+
+\begin{figure}[H]
+\center
+    \includegraphics[width=\textwidth]{img/tim6-conf.png}
+    \captionof{figure}{TIM6配置}
+\end{figure}
+
+注意：实际计数器工作时，会将配置的分频比加上1再参与计算，因此分频比应该配置为240-1.
+
+\subsection{程序配置}
+
+在前面的配置基础上，\cinl{delay_us}函数可简单实现如下：
+\begin{cbox}{delay.h}
+void delay_us(uint32_t us)
+{
+  /* 计数器值设置为0 */
+  __HAL_TIM_SET_COUNTER(&htim6, 0);
+  /* 等待计数器达到预定值 */
+  while (__HAL_TIM_GET_COUNTER(&htim6) < us);
+}
+\end{cbox}
