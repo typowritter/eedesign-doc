@@ -33,27 +33,26 @@
 \usepackage[cache=false,outputdir=tmp]{minted}
 \usepackage[skins,breakable,minted]{tcolorbox}
 
-\setmonofont{Fira Code}
+% \setmonofont{Fira Code}
 \usemintedstyle{trac}
 \BeforeBeginEnvironment{minted}{\begin{tcolorbox}[breakable]}%
 \AfterEndEnvironment{minted}{\end{tcolorbox}}%
 
 % File
-\newmintedfile[pyfile]{python}{style=trac}
-\newmintedfile[cfile]{c}{style=trac}
-\newmintedfile[vlfile]{verilog}{style=trac}
-\newmintedfile[scfile]{scala}{style=trac}
-\newmintedfile[matfile]{matlab}{style=trac}
-\newmintedfile[logfile]{console}{style=trac}
+\newmintedfile[pyfile]{python}{}
+\newmintedfile[cfile]{c}{}
+\newmintedfile[vlfile]{verilog}{}
+\newmintedfile[scfile]{scala}{}
+\newmintedfile[matfile]{matlab}{}
+\newmintedfile[logfile]{console}{}
 
 % Inline
-\newcommand{\pyinl}[1]{ \mintinline[style=trac]{python}{#1} }
-\newcommand{\cinl}[1]{ \mintinline[style=trac]{c}{#1} }
-\newcommand{\vlinl}[1]{ \mintinline[style=trac]{verilog}{#1} }
-\newcommand{\scinl}[1]{ \mintinline[style=trac]{scala}{#1} }
-\newcommand{\matinl}[1]{ \mintinline[style=trac]{matlab}{#1} }
-\newcommand{\loginl}[1]{ \mintinline[style=trac]{console}{#1} }
-
+\newcommand{\pyinl}[1]{~\mintinline{python}{#1}~}
+\newcommand{\cinl}[1]{~\mintinline{c}{#1}~}
+\newcommand{\vlinl}[1]{~\mintinline{verilog}{#1}~}
+\newcommand{\scinl}[1]{~\mintinline{scala}{#1}~}
+\newcommand{\matinl}[1]{~\mintinline{matlab}{#1}~}
+\newcommand{\loginl}[1]{~\mintinline{console}{#1}~}
 
 \definecolor{mintedbackground}{rgb}{0.95,0.95,0.95}
 \setminted[python,c,verilog,scala,matlab,console]{
