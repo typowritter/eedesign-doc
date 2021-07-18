@@ -58,7 +58,7 @@ STM32H743拥有2个基本定时器，TIM6和TIM7，包含以下特性：
 
 注意：实际计数器工作时，会将配置的分频比加上1再参与计算，因此分频比应该配置为240-1.
 
-\subsection{程序配置}
+\subsubsection{程序配置}
 
 在前面的配置基础上，\cinl{delay_us}函数可简单实现如下：
 \begin{cbox}{delay.h}
@@ -70,3 +70,15 @@ void delay_us(uint32_t us)
   while (__HAL_TIM_GET_COUNTER(&htim6) < us);
 }
 \end{cbox}
+
+具体完整实现见文件\cinl{delay.h}，这是一个header-only的库，其中实现了三个函数：
+
+\begin{minted}{c}
+void delay_init();
+void delay_us(uint32_t us);
+void delay_ms(uint32_t ms);
+\end{minted}
+
+其中，\cinl{delay_init}负责使能TIM6；\cinl{delay_ms}则是对\cinl{HAL_Delay}的简单封装。
+由于函数体都比较简单，因此函数全部声明为静态内联，避免函数调用带来的开销。
+
