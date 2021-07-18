@@ -85,7 +85,7 @@ static INLINE void delay_ms(uint32_t ms);
 
 \subsection{GPIO Bundle操作}
 在我们的应用中需要用到并口数据操作（AD9854），为了便于维护，在端口分配时尽量将同一组数据分配到
-连续的几个GPIO口上，然后使用位运算统一操作。为此，定义GPIO组类型如下：
+连续的几个GPIO口上，然后使用位运算统一操作。为此，定义GPIO bundle类型如下：
 
 \begin{minted}{c}
 typedef struct
@@ -120,7 +120,7 @@ gpio_set_group(gpio_group group, uint16_t value)
 同时将数据取反的结果再和掩码相与，提取出需要清除的位，放入高16位，最后对结果取偏移，
 得到BSRR寄存器的正确值。
 
-使用类似的思路，可以编写GPIO组的读取函数：
+使用类似的思路，可以编写GPIO bundle的读取函数：
 
 \begin{cbox}{gpio\_wrapper.h}
 static INLINE uint16_t
@@ -130,3 +130,16 @@ gpio_get_group(gpio_group group)
   return mask & (group.port->IDR >> group.offset);
 }
 \end{cbox}
+
+另外，\cinl{gpio_wrapper.h}中还定义了另外一些对HAL库的简单封装函数，以及用于定义GPIO端口和
+bundle的宏：
+
+\begin{minted}{console}
+#define DEF_GPIO(name, _port, _pin) \
+  static const gpio_pin name = {.port = _port, .pin = _pin }
+
+#define DEF_GPIO_GROUP(name, _port, _bits, _offset) \
+  static const gpio_group name = {.port = _port,    \
+                                  .bits = _bits,    \
+                                  .offset = _offset }
+\end{minted}
