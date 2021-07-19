@@ -18,7 +18,8 @@
 
 \punctstyle{kaiming}
 
-\setitemize{itemsep=-0.5em}
+\setitemize{itemsep=-0.4em}
+\setenumerate{itemsep=-0.4em}
 % \renewcommand{\baselinestretch}{1.5}
 % \setlength{\parindent}{2em}
 % \setlength{\parskip}{1em}
@@ -29,7 +30,7 @@
 % \captionsetup[figure]{name=Figure}
 
 \let\oldSI\SI
-\renewcommand{\SI}[2]{\,\oldSI{#1}{#2}\,}
+\renewcommand{\SI}[2]{~\oldSI{#1}{#2}~}
 
 \newcommand*{\dd}{\mathop{}\!\mathrm{d}}
 \newcommand{\mi}{\mathrm{i}}
