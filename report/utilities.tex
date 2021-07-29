@@ -1,5 +1,5 @@
 \section{辅助外设}
-\subsection{微秒延时}
+\subsection{微秒延时}\label{sec:tim}
 STM32的HAL库里提供了基于SysTick的延时函数\cinl{HAL_Delay(u32)}，单位为毫秒。
 但在我们的应用中，往往需要微秒级别的延时，例如ADS124S08的复位过程，
 最小的$\overline{\text{RESET}}$引脚低电平持续时间为
