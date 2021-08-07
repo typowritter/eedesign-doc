@@ -83,6 +83,52 @@ static INLINE void delay_ms(uint32_t ms);
 其中，\cinl{delay_init}负责使能TIM6；\cinl{delay_ms}则是对\cinl{HAL_Delay}的简单封装。
 由于函数体都比较简单，因此函数全部声明为静态内联，避免函数调用带来的开销。
 
+\subsubsection{另一种实现：DWT}
+
+如上这种延时方式中使用了定时器作为时基，由于STM32的基本定时器只有2个，
+在部分场景下就会显得捉襟见肘（基本定时器常用来作为ADC、DAC的转换触发源）。
+实际上，不借助外设，仅使用ARM核心就能达到我们目的。
+
+在ARMv7-M的规范中定义了\textbf{数据观察点和跟踪单元}（Data Watchpoint and Trace，DWT），
+其中含有一个32位的寄存器CYCCNT，这是一个向上的计数器，用于统计核心运行的周期数。
+由于这个单元是调试用的，正常应用不会使用到，因此我们可用来实现延时。
+
+查询器件手册，可知道Cortex-M3、M4、M7都实现了DWT单元。利用其实现的延时函数如下定义：
+
+\begin{cbox}{delay.h (rev.2)}
+  static INLINE void
+  delay_init()
+  {
+    /* Enable TRC */
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    /* Unlock register access */
+    DWT->LAR = 0xC5ACCE55;
+    /* Reset the clock cycle counter value */
+    DWT->CYCCNT = 0;
+    /* Enable clock cycle counter */
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  }
+
+  static INLINE void
+  delay_ms(uint32_t ms)
+  {
+    uint32_t initial_ticks = DWT->CYCCNT;
+    uint32_t total_ticks = ms * (HAL_RCC_GetSysClockFreq() / 1000);
+    while ((DWT->CYCCNT - initial_ticks) < total_ticks);
+  }
+
+  static INLINE void
+  delay_us(uint32_t us)
+  {
+    uint32_t initial_ticks = DWT->CYCCNT;
+    uint32_t total_ticks = us * (HAL_RCC_GetSysClockFreq() / 1000000);
+    while ((DWT->CYCCNT - initial_ticks) < total_ticks);
+  }
+\end{cbox}
+
+\cinl{delay_init}中，相应的结构体定义在\cinl{core_cm7.h}中。
+实际使用时只需要包括Device头文件（如\cinl{stm32h7xx.h}），就能正确引入相关的结构体定义。
+
 \subsection{GPIO Bundle操作}
 在我们的应用中需要用到并口数据操作（AD9854），为了便于维护，在端口分配时尽量将同一组数据分配到
 连续的几个GPIO口上，然后使用位运算统一操作。为此，定义GPIO bundle类型如下：
