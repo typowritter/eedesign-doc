@@ -154,3 +154,119 @@ void wavegen_freq_d();
 \end{cbox}
 
 \subsection{TX-信号采样提取端}
+\subsubsection{方案总览}
+相比于RX端，TX端只有一个前台循环，任务流程如下：
+
+\begin{enumerate}
+  \item 不断检测导频信号
+  \item 导频信号结束，开始采样正常信号，提取出频谱，解码出低4比特
+  \item 等待中间的导频信号结束
+  \item 导频信号结束，开始采样正常信号，提取出频谱，解码出高4比特
+  \item 将完整的一个字节通过UART发送到上位机
+\end{enumerate}
+
+其中，导频信号检测和正常信号的解码两个过程本质都是确认信号在某个频率上是否有尖峰，
+需要用到时域-频域变换算法。一种思路是\textbf{快速傅里叶变换}，这可通过使用CMSIS-DSP库中的
+FFT相关函数来实现；另一种思路则是单点傅里叶变换，如\textbf{格兹尔算法}。
+出于概念验证的考虑，我们决定选用后者来实现。
+
+\subsubsection{格兹尔算法---原理论证}
+
+格兹尔算法（Goertzel algorithm）是数字信号处理的一种运算方法，
+该方法提供一个相对高效的方式来估计局部的离散傅里变换，
+一个典型的应用就是数字电话中的的双音多频信号（每个拨号数字键由两个不同频率的单音信号组成）。
+
+格兹尔算法把离散傅里叶变换看成是一组滤波器，将输入的信号与滤波器中的脉冲响应做卷积运算，
+求得滤波器的输出，即得到频率域其中一点的频率$X(k)$.
+此算法利用旋转因子$\omega_{N}^{k}$的周期性，将离散傅里变换转化为线性的滤波运算。
+
+对于旋转因子，有下式成立：
+\begin{equation}
+  \omega_{N}^{-kN}=e^{-\mj(2{\pi /N})(-kN)}=1
+\end{equation}
+
+经傅里叶变换后第$k$点的频率为
+\begin{equation}\label{eqn:freq_n}
+\begin{aligned}
+  X(k)&=\omega_{N}^{-kN}\sum_{m=0}^{N-1}x(m) \ \omega_{N}^{km}\\
+  &=\sum_{m=0}^{N-1}x(m) \ \omega_{N}^{-k(N-m)},\quad
+  k=0,1,2,...,N-1
+\end{aligned}
+\end{equation}
+
+定义$y_{k}(n)$为
+\begin{equation}\label{eqn:y_k}
+  y_{k}(n)=\sum _{m=0}^{N-1}x(m)\omega_{N}^{-k(n-m)}
+\end{equation}
+
+可将$y_{k}(n)$看作由如下两个信号的卷积运算得出的结果
+\begin{equation}\label{eqn:conv}
+  y_{k}(n)=x(n)\otimes h_{k}(n)
+\end{equation}
+
+其中$x(n)$是输入的$N$点信号，另外一个$h_{k}(n)$则看作一个IIR滤波器的冲激响应
+\begin{equation}\label{eqn:pulse}
+  h_{k}(n)=\omega_{N}^{-kn}\ u(n)
+\end{equation}
+
+对比\Cref{eqn:freq_n}和\Cref{eqn:y_k}，可知对于\Cref{eqn:pulse}中的卷积运算，
+当$n=N$时，滤波器的输出$y_{k}(N)$即为$X(k)$：
+\begin{equation}\label{eqn:output}
+  X(k)=y_{k}(n)\lfloor_{n=N}
+\end{equation}
+
+对\Cref{eqn:pulse}进行Z变换，可得一阶IIR转移函数
+\begin{equation}
+  H_{k}(z)=\frac{1}{1-{\omega^{-k}\ z^{-1}}}
+\end{equation}
+
+下图为此系统的流程图：
+\begin{figure}[H]
+\center
+  \includegraphics[width=\textwidth]{img/goertzel-1st.png}
+  \captionof{figure}{格兹尔一阶滤波器系统示意图}
+\end{figure}
+
+对应的差分方程如下：
+\begin{equation}
+  y_{k}(n)=\omega_{N}^{-k}\ y_{k}(n-1)+x(n),\qquad \ y(-1)=0
+\end{equation}
+
+依照此差分方程进行迭代运算，迭代到$n=N$时即可通过\Cref{eqn:output}得到$X(k)$.
+\medskip
+
+格兹尔算法与离散傅里叶变换的相似处在于他们都可以分析某个特定频段的离散信号，
+不同处在于，格兹尔算法每次迭代都使用实数乘法，不需要涉及到复乘运算。
+虽然在全频域的计算上，格兹尔算法的复杂度高于其他的傅里叶变换算法，
+但是它能区段式的分析每个小区段的频率组成，因此可以编写成较简单的运算架构，
+在实际处理器的数值计算中更有效率。
+
+\subsubsection{格兹尔算法---C语言实现}
+由于我们只关注信号在一个频点上是否显著，因此可使用格兹尔算法的能量谱形式：
+
+\begin{minted}{c}
+double goertzel_power(int num, int freq, const double *data)
+{
+  double omega, cosine, coeff, q0, q1, q2;
+
+  int k = (int) (0.5 + ((num * freq) / (double)SAMPLING_RATE));
+  omega = (2.0 * M_PI * k) / num;
+  cosine = cos(omega);
+  coeff = 2.0 * cosine;
+  q1 = 0;
+  q2 = 0;
+  for (int i = 0; i < num; i++)
+  {
+    q0 = coeff * q1 - q2 + data[i]*hanning_1024[i];
+    q2 = q1;
+    q1 = q0;
+  }
+  return q1*q1 + q2*q2 - coeff*q1*q2;
+}
+\end{minted}
+
+其中，变量\cinl{q0,q1,q2}分别代表IIR滤波器的当前及前两次输出。
+
+在STM32F103平台（主频\SI{72}{MHz}，无硬件浮点单元）上实测，在输入长度为1024时，
+算法总耗时\SI{4.1}{ms}左右。相对应的，一次1024点FFT（使用前述库函数）耗时\SI{5.4}{ms}。
+考虑到我们一次解码4个点，相应地就需要运行4次格兹尔算法，因此相比FFT来说并没有优势。
