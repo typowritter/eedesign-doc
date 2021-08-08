@@ -1,0 +1,31 @@
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows}
+
+\tikzstyle{flarrow} = [thick,->,>=stealth]
+\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=3cm, minimum height=1cm,text centered, draw=black, fill=red!30]
+\tikzstyle{io} = [trapezium, trapezium left angle=70, trapezium right angle=110, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=blue!30]
+\tikzstyle{process} = [rectangle, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=orange!30]
+\tikzstyle{decision} = [diamond, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=green!30]
+
+\iffalse
+    \begin{center}
+    \begin{tikzpicture}[node distance=2.5cm]
+    \node (start)    [startstop] {DCR=0,开始};
+    \node (highfreq) [process, below of=start] {检查最高频率};
+    \node (ispos)    [decision, below of=highfreq, yshift=-0.5cm] {相位大于0？};
+    \node (ans2)     [io, right of=ispos, xshift=2cm] {输出结果``2''};
+    \node (lowfreq)  [process, below of=ispos, yshift=-0.5cm] {低频向上扫};
+    \node (isinc)    [decision, below of=lowfreq, yshift=-0.5cm] {相位单增？};
+    \node (ans6)     [io, right of=isinc, xshift=2cm] {输出结果``6''};
+    \node (ans8)     [io, below of=isinc, yshift=-0.5cm] {输出结果``8''};
+    \draw [flarrow] (start)    -- (highfreq);
+    \draw [flarrow] (highfreq) -- (ispos);
+    \draw [flarrow] (ispos)    -- node[anchor=south] {yes} (ans2);
+    \draw [flarrow] (ispos)    -- node[anchor=east]  {no}  (lowfreq);
+    \draw [flarrow] (lowfreq)  -- (isinc);
+    \draw [flarrow] (isinc)    -- node[anchor=south] {yes} (ans6);
+    \draw [flarrow] (isinc)    -- node[anchor=east]  {no}  (ans8);
+    \end{tikzpicture}
+    \captionof{figure}{DCR为0时扫频策略}
+    \end{center}
+\fi

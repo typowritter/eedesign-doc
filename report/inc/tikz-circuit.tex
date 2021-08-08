@@ -1,0 +1,17 @@
+\usepackage[siunitx]{style/circuitikzgit} % use 1.3.7
+
+\iffalse
+    \begin{center}
+    \begin{circuitikz}[scale=1.2]
+    \draw (0,0) node[flipflop D] (dffre) {}
+          (4,0) node[american and port] (and) {}
+          (dffre.pin 1) to[short,*-] ++(-1,0) node[above] {in}
+          (dffre.pin 3)           -- ++(-1,0) node[above] {clk}
+          (and.out)               -- ++( 1,0) node[above] {out};
+    \node at (and.bin 2) [ocirc, left]{};
+    \draw (dffre.pin 1) -- ++(0,1) -- ++(3,0) |- (and.in 1)
+          (dffre.pin 6) |- (and.in 2);
+    \end{circuitikz}
+    \captionof{figure}{脉宽变换电路}
+    \end{center}
+\fi
