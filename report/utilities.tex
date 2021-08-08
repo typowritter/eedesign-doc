@@ -1,4 +1,4 @@
-\section{辅助外设}
+\section{辅助设施}
 \subsection{微秒延时}\label{sec:tim}
 STM32的HAL库里提供了基于SysTick的延时函数\cinl{HAL_Delay(u32)}，单位为毫秒。
 但在我们的应用中，往往需要微秒级别的延时，例如ADS124S08的复位过程，
@@ -189,3 +189,56 @@ bundle的宏：
                                   .bits = _bits,    \
                                   .offset = _offset }
 \end{minted}
+
+\subsection{DMA缓冲区重映射}
+如下是STM32H7系列的系统架构：
+\begin{figure}[H]
+\center
+  \includegraphics[width=\textwidth]{img/mem-layout.jpeg}
+  \captionof{figure}{STM32H7储存器和总线架构}
+\end{figure}
+
+从图中可以看出，DMA1和DMA2位于D2域中，可以通过系统总线矩阵访问除了ITCM和DTCM之外的所有储存器。
+但是对于D1/D2域中的外设来说，内存默认是映射到DTCM RAM中的，这就造成了，在这些外设上使用DMA时，
+需要将DMA缓冲区放置到一个DMA控制器能访问的地址空间，否则就不能正常工作。
+同理，对于D3域的外设，DMA缓冲区需要放置到D3 SRAM4中。
+\footnote{参考：https://community.st.com/s/article/FAQ-DMA-is-not-working-on-STM32H7-devices}
+
+下图是各DMA能正常访问的地址：
+
+\begin{figure}[H]
+\center
+  \includegraphics[width=0.8\textwidth]{img/dma-section.png}
+  \captionof{figure}{DMA能访问的地址空间}
+\end{figure}
+
+拿ADC1来举例，该外设挂载在AHB1总线上，位于D2域中，内存默认在DTCM RAM中，因此如果要使用DMA传输，
+需要将缓冲区放置到两者都能访问的位置，如D2 SRAM1-3。
+
+GCC编译器有section attribute，可以控制变量放置在哪个区域中。因此，使用如下方式声明DMA缓冲区数组：
+
+\begin{minted}{c}
+#define DMA_BUFFER __attribute__((section(".dma_buffer")))
+DMA_BUFFER uint16_t adc_buffer[1024];
+\end{minted}
+
+另外，修改链接脚本\cinl{STM32H743XIHx_FLASH.ld}如下：
+\begin{minted}{diff}
+--- a/STM32H743XIHx_FLASH.ld
++++ b/STM32H743XIHx_FLASH.ld
+@@ -177,6 +177,13 @@
+     . = ALIGN(8);
+   } >DTCMRAM
+ 
++  /* DMA cannot access ITCM and DTCM RAM */
++  .dma_buffer (NOLOAD) :
++  {
++    . = ALIGN(32);
++    *(.dma_buffer)
++  } >RAM_D2
++
+\end{minted}
+
+上图将\cinl{.dma_buffer}区域放置到D2域的SRAM中，并设置为未初始化区域（类似\cinl{.bss}），
+如果想初始化为0，可以参考这里
+\footnote{参考：https://stackoverflow.com/questions/65577391/stm32-create-ram-section}
